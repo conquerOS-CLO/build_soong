@@ -111,6 +111,27 @@ func NewConfig(ctx Context, args ...string) Config {
 
 	// Make sure OUT_DIR is set appropriately
 	if outDir, ok := ret.environ.Get("OUT_DIR"); ok {
+		/* SRA rbe out_dir begin */
+		outDir = filepath.Clean(outDir)
+		if filepath.IsAbs(outDir) {
+			top := os.Getenv("TOP")
+			if top == "" {
+				if wd, err := os.Getwd(); err == nil {
+					top = wd
+				}
+			}
+			if top != "" {
+				if rel, err := filepath.Rel(top, outDir); err == nil && !strings.HasPrefix(rel, "..") {
+					outDir = rel
+					if out, ok := ret.environ.Get("OUT"); ok && filepath.IsAbs(out) {
+						if relOut, err := filepath.Rel(top, out); err == nil && !strings.HasPrefix(relOut, "..") {
+							ret.environ.Set("OUT", relOut)
+						}
+					}
+				}
+			}
+		}
+		/* SRA rbe out_dir end */
 		ret.environ.Set("OUT_DIR", filepath.Clean(outDir))
 	} else {
 		outDir := "out"

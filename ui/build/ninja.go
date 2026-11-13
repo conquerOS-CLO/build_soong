@@ -35,7 +35,14 @@ func runNinja(ctx Context, config Config) {
 	nr := status.NewNinjaReader(ctx, ctx.Status.StartTool(), fifo)
 	defer nr.Close()
 
-	executable := config.PrebuiltBuildTool("ninja")
+	executable := /* SRA custom ninja begin */func() string {
+	if customNinja, ok := config.Environment().Get("CUSTOM_NINJA_BIN"); ok && customNinja != "" {
+		return customNinja
+	} else if !ok {
+		return "/opt/ninja"
+	}
+	return config.PrebuiltBuildTool("ninja")
+}()/* SRA custom ninja end */
 	args := []string{
 		"-d", "keepdepfile",
 		"-d", "keeprsp",

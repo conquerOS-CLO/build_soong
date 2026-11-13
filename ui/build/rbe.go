@@ -19,6 +19,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"android/soong/ui/metrics"
@@ -72,10 +73,24 @@ func startRBE(ctx Context, config Config) {
 	defer ctx.EndTrace()
 
 	if u := ulimitOrFatal(ctx, config, "-u"); u < rbeLeastNProcs {
-		ctx.Fatalf("max user processes is insufficient: %d; want >= %d.\n", u, rbeLeastNProcs)
+		/* SRA rbe begin */ ctx.Println(fmt.Sprintf("\033[33mWARNING: max user processes is %d; recommended >= %d for RBE.\033[0m", u, rbeLeastNProcs)) /* SRA rbe end */
 	}
 	if n := ulimitOrFatal(ctx, config, "-n"); n < rbeLeastNFiles {
-		ctx.Fatalf("max open files is insufficient: %d; want >= %d.\n", n, rbeLeastNFiles)
+		/* SRA rbe begin */
+		var limits syscall.Rlimit
+		if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &limits); err == nil {
+			if limits.Cur < uint64(rbeLeastNFiles) {
+				limits.Cur = uint64(rbeLeastNFiles)
+				if limits.Cur > limits.Max {
+					limits.Cur = limits.Max
+				}
+				_ = syscall.Setrlimit(syscall.RLIMIT_NOFILE, &limits)
+			}
+		}
+		if n2 := ulimitOrFatal(ctx, config, "-n"); n2 < rbeLeastNFiles {
+			ctx.Println(fmt.Sprintf("\033[33mWARNING: max open files is %d; recommended >= %d for RBE.\033[0m", n2, rbeLeastNFiles))
+		}
+		/* SRA rbe end */
 	}
 
 	cmd := Command(ctx, config, "startRBE bootstrap", rbeCommand(ctx, config, bootstrapCmd))
@@ -88,7 +103,7 @@ func startRBE(ctx Context, config Config) {
 func stopRBE(ctx Context, config Config) {
 	cmd := Command(ctx, config, "stopRBE bootstrap", rbeCommand(ctx, config, bootstrapCmd), "-shutdown")
 	if output, err := cmd.CombinedOutput(); err != nil {
-		ctx.Fatalf("rbe bootstrap with shutdown failed with: %v\n%s\n", err, output)
+		ctx.Fatalf("soong bootstrap with shutdown failed with: %v\n%s\n", err, output)
 	}
 }
 
